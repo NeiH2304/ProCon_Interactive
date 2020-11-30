@@ -1,4 +1,5 @@
 import copy
+from math import sqrt, acos, pi
 
 class Environment(object):
 
@@ -89,14 +90,14 @@ class Environment(object):
     def get_act(act):
         switcher = {
                 (0, 0): 0,
-                (-1, 0): 1,
-                (-1, 1): 2,
+                (1, 0): 1,
+                (1, 1): 2,
                 (0, 1): 3,
-                (1, 1): 4,
-                (1, 0): 5,
-                (1, -1): 6,
+                (-1, 1): 4,
+                (-1, 0): 5,
+                (-1, -1): 6,
                 (0, -1): 7,
-                (-1, -1): 8,
+                (1, -1): 8,
             }
         return switcher.get(act, "nothing")
     
@@ -184,8 +185,8 @@ class Environment(object):
     def next_action(self, x, y, act):
         def action(x):
             switcher = {
-                0: [0, 0], 1: [-1, 0], 2: [-1, 1], 3: [0, -1],
-                4: [1, 1], 5: [1, 0], 6: [1, -1], 7: [0, -1], 8: [-1, -1]
+                0: [0, 0], 1: [1, 0], 2: [1, 1], 3: [0, 1],
+                4: [-1, 1], 5: [-1, 0], 6: [-1, -1], 7: [0, -1], 8: [1, -1]
             }
             return switcher.get(x, [0, 0])
         _action = action(act)
@@ -202,10 +203,31 @@ class Environment(object):
         
         return agent_matrix
     
-    def predict_scores(self, x, y, state, predict):
+    def angle(self, a1, b1, a2, b2):
+        fi = acos((a1 * a2 + b1 * b2) / (sqrt(a1*a1 + b1*b1) * (sqrt(a2*a2 + b2*b2))))
+        return fi
+    
+    def check(self, x0, y0, x, y, act):
+        
+        def action(x):
+            switcher = {
+                0: [0, 0], 1: [1, 0], 2: [1, 1], 3: [0, 1],
+                4: [-1, 1], 5: [-1, 0], 6: [-1, -1], 7: [0, -1], 8: [1, -1]
+            }
+            return switcher.get(x, [0, 0])
+        
+        a1, b1 = action(act)
+        a2, b2 = x - x0, y - y0
+        if abs(self.angle(a1, b1, a2, b2)) - 0.0001 <= pi / 4:
+            return True
+        return False
+        
+        
+    
+    def predict_scores(self, x, y, state, predict, act):
         score_matrix, agents_matrix, conquer_matrix, treasures_matrix = state
         score = 0
-        discount = 0.01
+        discount = 0.0125
         p_1 = 2
         p_2 = 1
         if predict is False:
@@ -218,29 +240,33 @@ class Environment(object):
                     if score_matrix[j][y - i] > -100: 
                         _sc = treasures_matrix[j][y - i] ** p_1
                         if(conquer_matrix[0][j][y - i] != 1):
-                            _sc += (max(0, score_matrix[j][y - i]) ** p_2)
-                        score += _sc * discount
+                            _sc += (score_matrix[j][y - i] ** p_2)
+                        if act == 0 or self.check(x, y, j, y - i, act):
+                            score += _sc * discount
                 if y + i < self.width:
                     if score_matrix[j][y + i] > -100: 
                         _sc = treasures_matrix[j][y + i] ** p_1
                         if(conquer_matrix[0][j][y + i] != 1):
-                            _sc += (max(0, score_matrix[j][y + i]) ** p_2)
+                            _sc += (score_matrix[j][y + i] ** p_2)
                         score += _sc * discount
+                        if act == 0 or self.check(x, y, j, y + i, act):
+                            score += _sc * discount
             for k in range(max(0, y - i), min(self.height, y + i + 1)):
                 if x - i >= 0:
                     if score_matrix[x - i][k] > -100: 
                         _sc = treasures_matrix[x - i][k] ** p_1
                         if(conquer_matrix[0][x - i][k] != 1):
-                            _sc += (max(0, score_matrix[x - i][k]) ** p_2)
-                        score += _sc * discount
+                            _sc += (score_matrix[x - i][k] ** p_2)
+                        if act == 0 or self.check(x, y, x - i, k, act):
+                            score += _sc * discount
                 if x + i < self.width:
                     if score_matrix[x + i][k] > -100: 
                         _sc = treasures_matrix[x + i][k] ** p_1
                         if(conquer_matrix[0][x + i][k] != 1):
-                            _sc += (max(0, score_matrix[x + i][k]) ** p_2)
-                        score += _sc * discount
-            discount *= 0.7
-        # print(score)
+                            _sc += (score_matrix[x + i][k] ** p_2)
+                        if act == 0 or self.check(x, y, x + i, k, act):
+                            score += _sc * discount
+            discount *= 0.5
         return score
     
     def fit_action(self, agent_id, state, act, agent_coord_1, agent_coord_2, predict = True):
@@ -251,7 +277,7 @@ class Environment(object):
         aux_score = 0
         if _x >= 0 and _x < self.height and _y >= 0 and _y < self.width and score_matrix[_x][_y] > -100:
             aux_score += (treasures_matrix[_x][_y] + score_matrix[_x][_y]) * 0.4
-            aux_score += self.predict_scores(_x, _y, state, predict)
+            aux_score += self.predict_scores(_x, _y, state, predict, act)
             if agents_matrix[_x][_y] == 0:
                 if conquer_matrix[1][_x][_y] == 0:
                     agents_matrix[_x][_y] = agent_id + 1
