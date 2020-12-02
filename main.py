@@ -10,6 +10,7 @@ def get_args():
     parser = argparse.ArgumentParser(
         """Implementation of Deep Q Network to play Procon""")
     parser.add_argument("--file_name", default = "input.txt")
+    parser.add_argument("--type", default = "1")
     args, unknown = parser.parse_known_args()
     return args
 

@@ -148,7 +148,7 @@ class Agent():
             #     print(param.data)
         self.iter += 1
         
-    def select_action_test(self, state):
+    def select_action_smart(self, state):
         actions = []
         state = copy.deepcopy(state)
         state = np.reshape(flatten(state), (5, 20, 20))

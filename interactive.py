@@ -20,7 +20,10 @@ def interactive(opt):
     agent.set_environment(Environment(h, w, score_matrix, coord_agens_A,
                   coord_agens_B, coord_treasures, coord_walls, turns, conquer_matrix))
     state = agent.get_state_actor()
-    states, actions, rewards, next_states = agent.select_action_test(state)
+    if opt.type == 1:
+        states, actions, rewards, next_states = agent.select_action_smart(state)
+    else:
+        states, actions, rewards, next_states = agent.select_action_test_not_predict(state)
 
     def action(x):
         switcher = {
