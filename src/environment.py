@@ -277,6 +277,7 @@ class Environment(object):
         new_coord = (self.next_action(x, y, act))
         _x, _y = new_coord
         aux_score = 0
+        valid = True
         if _x >= 0 and _x < self.height and _y >= 0 and _y < self.width and score_matrix[_x][_y] > -100:
             aux_score += (treasures_matrix[_x][_y] + score_matrix[_x][_y]) * 0.4
             aux_score += self.predict_scores(_x, _y, state, predict, act)
@@ -291,13 +292,13 @@ class Environment(object):
                 else:
                     conquer_matrix[1][_x][_y] = 0
         else:
-            aux_score -= 10
+            valid = False
         state = [score_matrix, agents_matrix, conquer_matrix, treasures_matrix]
         score_1, score_2, treasures_score_1, treasures_score_2 = self.compute_score(state)
         # print(aux_score, score_1 + treasures_score_1 - score_2 - treasures_score_2)
         if(predict is False):
             aux_score = 0
-        return state, agent_coord_1, score_1 + treasures_score_1 - score_2 - treasures_score_2 + aux_score
+        return valid, state, agent_coord_1, score_1 + treasures_score_1 - score_2 - treasures_score_2 + aux_score
     
     def next_frame(self, actions_1, actions_2, BGame, change):
         
