@@ -235,7 +235,7 @@ class Environment(object):
         score_matrix, agents_matrix, conquer_matrix, treasures_matrix = state
         score = 0
         discount = 0.015
-        reduce_negative = 0.2
+        reduce_negative = 0.1
         p_1 = 1.2
         p_2 = 1
         if predict is False:
@@ -285,7 +285,7 @@ class Environment(object):
                         if act == 0 or self.check(x, y, new_x, new_y, act):
                             if area_matrix[new_x][new_y] == 0:
                                 score += _sc * discount
-        discount *= 0.7
+            discount *= 0.7
         return score
     
     def fit_action(self, agent_id, state, act, agent_coord_1, agent_coord_2, predict = True):
