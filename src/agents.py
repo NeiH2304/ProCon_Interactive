@@ -1,4 +1,4 @@
-            #!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Thu Nov  5 09:45:45 2020
@@ -108,7 +108,7 @@ class Agent():
             pre_acts = []
             for j in range(len(ns)):
                 state = ns[j]
-                reward = torch.max(self.target_actors[i](torch.from_numpy(
+                reward = torch.max(self.actors[i](torch.from_numpy(
                     np.array([state])).to(self.device))).to('cpu').data.numpy()
                 # print(reward)
                 reward_predict.append(reward)
@@ -142,7 +142,7 @@ class Agent():
             loss_actor.backward()
             self.actor_optimizers[i].step()
             
-            utils.soft_update(self.target_actors[i], self.actors[i], self.tau)
+            # utils.soft_update(self.target_actors[i], self.actors[i], self.tau)
             self.actor_loss_value = loss_actor.to('cpu').data.numpy()
             # for param in self.actors[i].parameters():
             #     print(param.data)
@@ -186,6 +186,7 @@ class Agent():
                 scores[j] = scores[j] / sum
                 if(valid_states[j] is False):
                     scores[j] = 0
+            scores[0] = 0
             act = choices(range(9), scores)[0]
             valid, state, agent_coord, score = self.env.fit_action(i, state, act, agent_coord_1, agent_coord_2)
             rewards.append(score - init_score)
