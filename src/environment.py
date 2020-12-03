@@ -74,7 +74,6 @@ class Environment(object):
                 if(self.score_matrix[i][j] > -100):
                     self.max_scr = max(self.max_scr, self.score_matrix[i][j])
                     self.min_scr = min(self.min_scr, self.score_matrix[i][j])
-            
         for i in range(self.num_agents):
             x, y = self.agent_coord_1[i]
             self.agents_matrix[x][y] = i + 1
@@ -234,13 +233,11 @@ class Environment(object):
     def predict_scores(self, x, y, state, predict, act, area_matrix):
         score_matrix, agents_matrix, conquer_matrix, treasures_matrix = state
         score = 0
-        discount = 0.015
-        reduce_negative = 0.1
-        p_1 = 1.2
+        discount = 0.02
+        reduce_negative = 0.02
+        p_1 = 1.3
         p_2 = 1
-        if predict is False:
-            discount = 0.07
-        for i in range(1, min(5, self.remaining_turns)):
+        for i in range(1, min(8, self.remaining_turns)):
             for j in range(max(0, x - i), min(self.height, x + i + 1)):
                 # if j < 0 or j > self.height or k < 0 or k > self.width:
                 #     continue
@@ -286,6 +283,7 @@ class Environment(object):
                             if area_matrix[new_x][new_y] == 0:
                                 score += _sc * discount
             discount *= 0.7
+        # print(score)
         return score
     
     def fit_action(self, agent_id, state, act, agent_coord_1, agent_coord_2, predict = True):
@@ -296,7 +294,7 @@ class Environment(object):
         aux_score = 0
         valid = True
         if _x >= 0 and _x < self.height and _y >= 0 and _y < self.width and score_matrix[_x][_y] > -100:
-            aux_score += (treasures_matrix[_x][_y] + score_matrix[_x][_y]) * 0.4
+            # aux_score += (treasures_matrix[_x][_y] + score_matrix[_x][_y]) * 0.4
             if agents_matrix[_x][_y] == 0:
                 if conquer_matrix[1][_x][_y] == 0:
                     agents_matrix[_x][_y] = agent_id + 1
@@ -304,10 +302,12 @@ class Environment(object):
                     conquer_matrix[0][_x][_y] = 1
                     agent_coord_1[agent_id][0] = _x
                     agent_coord_1[agent_id][1] = _y
-                    # aux_score += 3
+                    aux_score += 1
                 else:
                     conquer_matrix[1][_x][_y] = 0
-                    aux_score -= 1
+                    aux_score -= 0.5
+                    # if _x == self.precoord[agent_id][0] and _y == self.precoord[agent_id][1]:
+                    #     aux_score -= 2
         else:
             valid = False
         state = [score_matrix, agents_matrix, conquer_matrix, treasures_matrix]
@@ -317,8 +317,6 @@ class Environment(object):
         # print(aux_score, score_1 + treasures_score_1 - score_2 - treasures_score_2)
         if(predict is False):
             aux_score = 0
-        if _x == self.precoord[agent_id][0] and _y == self.precoord[agent_id][1]:
-            aux_score -= 2
         self.precoord = copy.deepcopy(self.agent_coord_1)
         return valid, state, agent_coord_1, score_1 + treasures_score_1 - score_2 - treasures_score_2 + aux_score
     
