@@ -72,7 +72,8 @@ class Agent():
             utils.hard_update(self.target_actors[i], self.actors[i])
             utils.hard_update(self.target_critics[i], self.critics[i])
         self.memories = [ReplayBuffer(mem_size) for i in range(num_agent_lim)]
-        
+            
+            
     def set_environment(self, env):
         self.env = env
         self.num_agents = env.num_agents
@@ -109,7 +110,7 @@ class Agent():
             pre_acts = []
             for j in range(len(ns)):
                 state = ns[j]
-                reward = torch.max(self.actors[i](torch.from_numpy(
+                reward = torch.max(self.target_actors[i](torch.from_numpy(
                     np.array([state])).to(self.device))).to('cpu').data.numpy()
                 # print(reward)
                 reward_predict.append(reward)
@@ -143,11 +144,50 @@ class Agent():
             loss_actor.backward()
             self.actor_optimizers[i].step()
             
-            # utils.soft_update(self.target_actors[i], self.actors[i], self.tau)
+            utils.soft_update(self.target_actors[i], self.actors[i], self.tau)
             self.actor_loss_value = loss_actor.to('cpu').data.numpy()
             # for param in self.actors[i].parameters():
             #     print(param.data)
         self.iter += 1
+        
+    def select_action(self, state, epsilon):
+        actions = []
+        state = copy.deepcopy(state)
+        state = np.reshape(flatten(state), (5, 20, 20))
+        state = [state[0], state[1], [state[2], state[3]], state[4]]
+        agent_coord_1 = copy.deepcopy(self.env.agent_coord_1)
+        agent_coord_2 = copy.deepcopy(self.env.agent_coord_2)
+        init_score = self.env.score_mine - self.env.score_opponent
+        rewards = []
+        states = []
+        next_states = []
+        
+        for i in range(self.num_agents):
+            act = None
+            states.append(state)
+            
+            if random() <= epsilon:
+                act = randint(0, self.action_lim - 1)
+            else:
+                _state = state
+                _state[1] = self.env.get_agent_state(_state[1], i)
+                _state = flatten(_state)
+                act = self.get_exploration_action(np.array(_state, dtype=np.float32), i)
+                
+            # _state, _agent_coord_1, _agent_coord_2 = copy.deepcopy([state, agent_coord_1, agent_coord_2])
+            valid, state, agent_coord_1, score = self.env.fit_action(i, state, act, agent_coord_1, agent_coord_2, False)
+            punish = 0
+            if valid is False:
+                punish = 20
+            rewards.append(score - init_score - punish)
+            # rewards.append(score - init_score)
+            actions.append(act)
+            next_states.append(state)
+            init_score = score
+            
+        self.steps_done += 1
+        return states, actions, rewards, next_states
+                      
         
     def select_action_smart(self, state):
         actions = [0] * self.num_agents
@@ -179,10 +219,10 @@ class Agent():
                 mn = min(mn, _score - init_score)
                 mx = max(mx, _score - init_score)
                 valid_states.append(valid)
-            scores[0] -= 2
+            # scores[0] -= 2
             for j in range(len(scores)):
                 scores[j] = (scores[j] - mn) / (mx - mn + 0.0001)
-                scores[j] **= 4
+                scores[j] **= 20
             sum = np.sum(scores) + 0.0001
             for j in range(len(scores)):
                 scores[j] = scores[j] / sum
@@ -192,7 +232,7 @@ class Agent():
             act = choices(range(9), scores)[0]
             valid, state, agent_coord, score = self.env.fit_action(agent, state, act, agent_coord_1, agent_coord_2)
             rewards.append(score - init_score)
-            init_score += score
+            init_score = score
             actions[agent] = act
             next_states.append(state)
             
@@ -237,15 +277,14 @@ class Agent():
                     scores[j] = 0
             act = choices(range(9), scores)[0]
             valid, state, agent_coord, score = self.env.fit_action(i, state, act, agent_coord_1, agent_coord_2)
-            rewards.append(score - init_score)
-            init_score += score
+            init_score = score
             actions.append(act)
             next_states.append(state)
             
         return states, actions, rewards, next_states
     
     def select_best_actions(self, state):
-        actions = []
+        actions = [0] * self.num_agents
         state = copy.deepcopy(state)
         state = np.reshape(flatten(state), (5, 20, 20))
         state = [state[0], state[1], [state[2], state[3]], state[4]]
@@ -255,28 +294,43 @@ class Agent():
         rewards = []
         states = []
         next_states = []
-        acts = [(i + 1) for i in range(8)]
-        all_acts = []
-        permutations_object = [list(p) for p in product(acts, repeat=self.num_agents)]
-        permutations_list = list(permutations_object)
-        all_acts += permutations_list
-        
-        max_score = 0
-        
-        for acts in all_acts:
-            temp_scores = 0
-            for i in range(self.num_agents):
-                act = acts[i]
-                state, agent_coord, score = self.env.fit_action(i, state, act, agent_coord_1, agent_coord_2)
-                rewards.append(score - init_score)
-                temp_scores += score-  init_score
-                init_score += score
-                actions.append(act)
-                next_states.append(state)
-            if(temp_scores > max_score):
-                max_score = temp_scores
-                actions = acts
-        return states, actions, rewards, states
+        order = shuffle(range(self.num_agents))
+        for i in range(self.num_agents):
+            agent = order[i]
+            _state = state
+            _state[1] = self.env.get_agent_state(_state[1], agent)
+            _state = flatten(_state)
+            states.append(state)
+            act = 0
+            scores = [0] * 9
+            mn = 1000
+            mx = -1000
+            valid_states = []
+            for act in range(9):
+                _state, _agent_coord_1, _agent_coord_2 = copy.deepcopy([state, agent_coord_1, agent_coord_2])
+                valid, _state, _agent_coord, _score = self.env.fit_action(agent, _state, act, _agent_coord_1, _agent_coord_2)
+                scores[act] = _score - init_score
+                mn = min(mn, _score - init_score)
+                mx = max(mx, _score - init_score)
+                valid_states.append(valid)
+            # scores[0] -= 2
+            for j in range(len(scores)):
+                scores[j] = (scores[j] - mn) / (mx - mn + 0.0001)
+                scores[j] **= 10
+            sum = np.sum(scores) + 0.0001
+            for j in range(len(scores)):
+                scores[j] = scores[j] / sum
+                if(valid_states[j] is False):
+                    scores[j] = 0
+            scores[0] = 0
+            act = choices(range(9), scores)[0]
+            valid, state, agent_coord, score = self.env.fit_action(agent, state, act, agent_coord_1, agent_coord_2)
+            rewards.append(score - init_score)
+            init_score = score
+            actions[agent] = act
+            next_states.append(state)
+            
+        return states, actions, rewards, next_states
     
         
     
@@ -308,46 +362,12 @@ class Agent():
             state, agent_coord, score = self.env.fit_action(i, state, act, agent_coord_1, agent_coord_2)
             
             rewards.append(score - init_score)
-            init_score += score
+            init_score = score
             actions.append(act)
             next_states.append(state)
             
         return states, actions, rewards, next_states
     
-    def select_action(self, state, epsilon):
-        actions = []
-        state = copy.deepcopy(state)
-        state = np.reshape(flatten(state), (5, 20, 20))
-        state = [state[0], state[1], [state[2], state[3]], state[4]]
-        agent_coord_1 = copy.deepcopy(self.env.agent_coord_1)
-        agent_coord_2 = copy.deepcopy(self.env.agent_coord_2)
-        init_score = self.env.score_mine - self.env.score_opponent
-        rewards = []
-        states = []
-        next_states = []
-        
-        for i in range(self.num_agents):
-            act = None
-            states.append(state)
-            
-            if random() <= epsilon:
-                act = randint(0, self.action_lim - 1)
-            else:
-                _state = state
-                _state[1] = self.env.get_agent_state(_state[1], i)
-                _state = flatten(_state)
-                act = self.get_exploration_action(np.array(_state, dtype=np.float32), i)
-                
-            valid, state, agent_coord, score = self.env.fit_action(i, state, act, agent_coord_1, agent_coord_2)
-            rewards.append(score - init_score)
-            actions.append(act)
-            next_states.append(state)
-            init_score += score
-            
-        self.steps_done += 1
-        
-        return states, actions, rewards, next_states
-                      
     def transform_to_critic_state(self, state):
         state[1] = self.get_state_critic(state[1])
         return state
