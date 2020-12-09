@@ -222,13 +222,12 @@ class Agent():
             scores[0] = mn
             for j in range(len(scores)):
                 scores[j] = (scores[j] - mn) / (mx - mn + 0.0001)
-                scores[j] **= 20
             sum = np.sum(scores) + 0.0001
             for j in range(len(scores)):
                 scores[j] = scores[j] / sum
                 if(valid_states[j] is False):
                     scores[j] = 0
-            act = choices(range(9), scores)[0]
+            act = np.array(scores).argmax()
             valid, state, agent_coord, score = self.env.fit_action(agent, state, act, agent_coord_1, agent_coord_2)
             rewards.append(score - init_score)
             init_score = score
